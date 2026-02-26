@@ -9,12 +9,17 @@ use axum::{
     Router,
 };
 use std::sync::{Arc, Mutex};
+use tracing::info;
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+    
+    info!("Starting Orders Server...");
+    
     let conn = db::open();
     db::init(&conn).expect("DB init failed");
-    println!("Database Ready!");
+    info!("Database initialized successfully.");
 
     let state = AppState {
         db: Arc::new(Mutex::new(conn)),

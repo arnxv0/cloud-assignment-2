@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::models::CreateOrderRequest;
 use std::sync::{Arc, Mutex};
+use tracing::{error, info, warn};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -77,6 +78,7 @@ pub async fn create_order(
         let cached: serde_json::Value = serde_json::from_str(&stored_response).unwrap();
         let status = StatusCode::from_u16(stored_status as u16).unwrap_or(StatusCode::OK);
 
+        warn!(key = %idem_key, "Replaying cached idempotent response");
         return (status, Json(cached));
     }
 
@@ -124,15 +126,34 @@ pub async fn create_order(
     match result {
         Ok(_) => {
             db.execute_batch("COMMIT;").unwrap();
+            info!(order_id = %order_id, key = %idem_key, "Order created successfully");
         }
         Err(e) => {
             db.execute_batch("ROLLBACK;").ok();
+            error!(err = %e, "Failed transaction, rolled back");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": e.to_string() })),
             );
         }
     }
+
+    let should_fail = headers
+        .get("x-debug-fail-after-commit")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if should_fail {
+        error!(order_id = %order_id, "Simulating post-commit failure — response intentionally dropped");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Simulated failure: commit succeeded, response dropped" })),
+        );
+    }
+
+    info!(order_id = %order_id, "Response sent successfully");
+
     (StatusCode::CREATED, Json(response))
 }
 
@@ -140,6 +161,7 @@ pub async fn get_order(
     State(state): State<AppState>,
     Path(order_id): Path<String>,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    info!(order_id = %order_id, "GET /orders/:id");
     let db = state.db.lock().unwrap();
 
     let result = db.query_row(
