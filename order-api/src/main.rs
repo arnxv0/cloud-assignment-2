@@ -23,6 +23,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(async || "Orders server is running!"))
         .route("/orders", post(handlers::create_order))
+        .route("/orders/{order_id}", get(handlers::get_order))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();

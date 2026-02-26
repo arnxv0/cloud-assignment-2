@@ -1,4 +1,8 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 use rusqlite::params;
 use serde_json::json;
 
@@ -57,4 +61,34 @@ pub async fn create_order(
             "status": "created",
         })),
     )
+}
+
+pub async fn get_order(
+    State(state): State<AppState>,
+    Path(order_id): Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let db = state.db.lock().unwrap();
+
+    let result = db.query_row(
+        "SELECT order_id, customer_id, item_id, quantity, created_at
+         FROM orders WHERE order_id = ?1",
+        params![order_id],
+        |row| {
+            Ok(json!({
+                "order_id":    row.get::<_, String>(0)?,
+                "customer_id": row.get::<_, String>(1)?,
+                "item_id":     row.get::<_, String>(2)?,
+                "quantity":    row.get::<_, i32>(3)?,
+                "created_at":  row.get::<_, String>(4)?,
+            }))
+        },
+    );
+
+    match result {
+        Ok(order) => (StatusCode::OK, Json(order)),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "Order not found"})),
+        ),
+    }
 }
