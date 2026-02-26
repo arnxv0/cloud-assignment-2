@@ -1,6 +1,14 @@
 mod db;
+mod handlers;
+mod models;
 
-use axum::{routing::get, Router};
+use handlers::AppState;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
+use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() {
@@ -8,7 +16,15 @@ async fn main() {
     db::init(&conn).expect("DB init failed");
     println!("Database Ready!");
 
-    let app = Router::new().route("/", get(async || "Orders server is running!"));
+    let state = AppState {
+        db: Arc::new(Mutex::new(conn)),
+    };
+
+    let app = Router::new()
+        .route("/", get(async || "Orders server is running!"))
+        .route("/orders", post(handlers::create_order))
+        .with_state(state);
+
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     println!("Listening on http://0.0.0.0:8080");
     axum::serve(listener, app).await.unwrap();
