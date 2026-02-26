@@ -15,7 +15,7 @@
 ### First Time Setup on EC2
 
 ```bash
-ssh -i ~/.ssh/your-key.pem ec2-user@YOUR_EC2_IP
+ssh -i ~/.ssh/your-key.pem ec2-user@44.200.32.181
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
@@ -26,7 +26,7 @@ sudo dnf install gcc -y
 
 ```bash
 # From your local machine
-scp -i ~/.ssh/your-key.pem -r ./order-api ec2-user@YOUR_EC2_IP:~/order-api
+scp -i ~/.ssh/your-key.pem -r ./order-api ec2-user@44.200.32.181:~/order-api
 
 # On EC2
 cd order-api
@@ -83,13 +83,9 @@ Returns order by ID. 404 if not found.
 
 ## Verification
 
-```bash
-export BASE=http://YOUR_EC2_IP:8080
-```
-
 **Step 1 — Create order**
 ```bash
-curl -X POST $BASE/orders \
+curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
@@ -98,7 +94,7 @@ Expected: `201` with `order_id` and `"status":"created"`
 
 **Step 2 — Retry same key + payload**
 ```bash
-curl -X POST $BASE/orders \
+curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
@@ -107,7 +103,7 @@ Expected: same `201`, same `order_id`, no duplicate DB row
 
 **Step 3 — Same key, different payload**
 ```bash
-curl -X POST $BASE/orders \
+curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":5}'
@@ -116,7 +112,7 @@ Expected: `409 Conflict`
 
 **Step 4 — Simulate failure after commit**
 ```bash
-curl -X POST $BASE/orders \
+curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-fail-1" \
   -H "X-Debug-Fail-After-Commit: true" \
@@ -126,7 +122,7 @@ Expected: `500`, but order is committed to DB
 
 **Step 5 — Retry after failure**
 ```bash
-curl -X POST $BASE/orders \
+curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-fail-1" \
   -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
@@ -135,7 +131,7 @@ Expected: `201`, same `order_id`, no duplicate rows
 
 **Step 6 — Fetch order**
 ```bash
-curl $BASE/orders/YOUR_ORDER_ID
+curl http://44.200.32.181:8080/orders/YOUR_ORDER_ID
 ```
 Expected: full order JSON
 
