@@ -1,23 +1,147 @@
 # cloud-assignment-2
 
 
+## Deployment
 
-cargo run
+**EC2:** t3.micro, Amazon Linux 2023
 
-curl -X POST http://localhost:8080/orders \
+**Security Group Inbound Rules:**
+
+| Port | Source |
+|---|---|
+| 22 (SSH) | My IP |
+| 8080 (HTTP) | 0.0.0.0/0 |
+
+### First Time Setup on EC2
+
+```bash
+ssh -i ~/.ssh/your-key.pem ec2-user@YOUR_EC2_IP
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+sudo dnf install gcc -y
+```
+
+### Deploy
+
+```bash
+# From your local machine
+scp -i ~/.ssh/your-key.pem -r ./order-api ec2-user@YOUR_EC2_IP:~/order-api
+
+# On EC2
+cd order-api
+cargo build --release
+nohup ./target/release/order-api > app.log 2>&1 &
+cat app.log
+```
+
+### Redeploy After Changes
+
+```bash
+./deploy.sh
+```
+
+---
+
+## Endpoints
+
+### `POST /orders`
+
+**Required headers:**
+- `Content-Type: application/json`
+- `Idempotency-Key: <unique-string>`
+
+**Optional debug header:**
+- `X-Debug-Fail-After-Commit: true` — commits to DB then returns 500 (simulates lost response)
+
+**Body:**
+```json
+{
+  "customer_id": "cust-42",
+  "item_id": "item-9",
+  "quantity": 1
+}
+```
+
+**Response codes:**
+
+| Code | Reason |
+|---|---|
+| 201 | Order created |
+| 200 | Duplicate request, original response replayed |
+| 400 | Missing `Idempotency-Key` |
+| 409 | Same key, different payload |
+| 500 | Server error |
+
+---
+
+### `GET /orders/:order_id`
+
+Returns order by ID. 404 if not found.
+
+---
+
+## Verification
+
+```bash
+export BASE=http://YOUR_EC2_IP:8080
+```
+
+**Step 1 — Create order**
+```bash
+curl -X POST $BASE/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
+```
+Expected: `201` with `order_id` and `"status":"created"`
 
-curl -X POST http://localhost:8080/orders \
+**Step 2 — Retry same key + payload**
+```bash
+curl -X POST $BASE/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
+```
+Expected: same `201`, same `order_id`, no duplicate DB row
 
-curl -X POST http://localhost:8080/orders \
+**Step 3 — Same key, different payload**
+```bash
+curl -X POST $BASE/orders \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: test-123" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":5}'
+```
+Expected: `409 Conflict`
 
-sqlite3 orders.db "SELECT COUNT(*) FROM orders;"
-sqlite3 orders.db "SELECT COUNT(*) FROM ledger;"
+**Step 4 — Simulate failure after commit**
+```bash
+curl -X POST $BASE/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: test-fail-1" \
+  -H "X-Debug-Fail-After-Commit: true" \
+  -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
+```
+Expected: `500`, but order is committed to DB
+
+**Step 5 — Retry after failure**
+```bash
+curl -X POST $BASE/orders \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: test-fail-1" \
+  -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
+```
+Expected: `201`, same `order_id`, no duplicate rows
+
+**Step 6 — Fetch order**
+```bash
+curl $BASE/orders/YOUR_ORDER_ID
+```
+Expected: full order JSON
+
+**Check for duplicates (on EC2)**
+```bash
+sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM orders WHERE customer_id='cust2';"
+sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM ledger WHERE customer_id='cust2';"
+# Both should return 1
+```
