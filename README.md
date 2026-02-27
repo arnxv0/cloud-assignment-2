@@ -87,8 +87,8 @@ Returns order by ID. 404 if not found.
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-12" \
-  -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
+  -H "Idempotency-Key: test-1" \
+  -d '{"customer_id":"cust3","item_id":"item1","quantity":1}'
 ```
 Expected: `201` with `order_id` and `"status":"created"`
 
@@ -96,8 +96,8 @@ Expected: `201` with `order_id` and `"status":"created"`
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-12" \
-  -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
+  -H "Idempotency-Key: test-1" \
+  -d '{"customer_id":"cust3","item_id":"item1","quantity":1}'
 ```
 Expected: same `201`, same `order_id`, no duplicate DB row
 
@@ -105,8 +105,8 @@ Expected: same `201`, same `order_id`, no duplicate DB row
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-12" \
-  -d '{"customer_id":"cust1","item_id":"item1","quantity":5}'
+  -H "Idempotency-Key: test-1" \
+  -d '{"customer_id":"cust3","item_id":"item1","quantity":5}'
 ```
 Expected: `409 Conflict`
 
@@ -114,9 +114,9 @@ Expected: `409 Conflict`
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-fail-2" \
+  -H "Idempotency-Key: test-fail-3" \
   -H "X-Debug-Fail-After-Commit: true" \
-  -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
+  -d '{"customer_id":"cust4","item_id":"item2","quantity":1}'
 ```
 Expected: `500`, but order is committed to DB
 
@@ -124,20 +124,22 @@ Expected: `500`, but order is committed to DB
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-fail-2" \
-  -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
+  -H "Idempotency-Key: test-fail-3" \
+  -d '{"customer_id":"cust4","item_id":"item2","quantity":1}'
 ```
 Expected: `201`, same `order_id`, no duplicate rows
 
 **Step 6 — Fetch order**
 ```bash
-curl http://44.200.32.181:8080/orders/YOUR_ORDER_ID
+curl http://44.200.32.181:8080/orders/4a6e1f78-efed-40bd-bf21-b0daac9be7c3
 ```
 Expected: full order JSON
 
 **Check for duplicates (on EC2)**
 ```bash
-sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM orders WHERE customer_id='cust2';"
-sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM ledger WHERE customer_id='cust2';"
-# Both should return 1
+sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM orders WHERE customer_id='cust3';"
+```
+
+```bash
+sqlite3 ~/order-api/orders.db "SELECT COUNT(*) FROM ledger WHERE customer_id='cust3';"
 ```
