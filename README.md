@@ -1,6 +1,5 @@
 # cloud-assignment-2
 
-
 ## Deployment
 
 **EC2:** t3.micro, Amazon Linux 2023
@@ -131,7 +130,7 @@ Expected: `201`, same `order_id`, no duplicate rows
 
 **Step 6 — Fetch order**
 ```bash
-curl http://44.200.32.181:8080/orders/4a6e1f78-efed-40bd-bf21-b0daac9be7c3
+curl http://44.200.32.181:8080/orders/5cc5e97d-b24f-409a-ac8a-5293e7350b16
 ```
 Expected: full order JSON
 
