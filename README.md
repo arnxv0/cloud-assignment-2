@@ -87,7 +87,7 @@ Returns order by ID. 404 if not found.
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-123" \
+  -H "Idempotency-Key: test-12" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
 ```
 Expected: `201` with `order_id` and `"status":"created"`
@@ -96,7 +96,7 @@ Expected: `201` with `order_id` and `"status":"created"`
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-123" \
+  -H "Idempotency-Key: test-12" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":1}'
 ```
 Expected: same `201`, same `order_id`, no duplicate DB row
@@ -105,7 +105,7 @@ Expected: same `201`, same `order_id`, no duplicate DB row
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-123" \
+  -H "Idempotency-Key: test-12" \
   -d '{"customer_id":"cust1","item_id":"item1","quantity":5}'
 ```
 Expected: `409 Conflict`
@@ -114,7 +114,7 @@ Expected: `409 Conflict`
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-fail-1" \
+  -H "Idempotency-Key: test-fail-2" \
   -H "X-Debug-Fail-After-Commit: true" \
   -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
 ```
@@ -124,7 +124,7 @@ Expected: `500`, but order is committed to DB
 ```bash
 curl -X POST http://44.200.32.181:8080/orders \
   -H "Content-Type: application/json" \
-  -H "Idempotency-Key: test-fail-1" \
+  -H "Idempotency-Key: test-fail-2" \
   -d '{"customer_id":"cust2","item_id":"item2","quantity":1}'
 ```
 Expected: `201`, same `order_id`, no duplicate rows
